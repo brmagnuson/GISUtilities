@@ -478,3 +478,31 @@ def createPrjFile(projectionInfo, shapefilePath):
     return prjPath
 
 
+def calculateDistance(place1, place2, method='nearestToNearest'):
+
+    # Get geometry
+    if isinstance(place1, ogr.Geometry):
+        geometry1 = place1
+    elif isinstance(place1, ogr.Feature):
+        geometry1 = place1.GetGeometryRef()
+    else:
+        sys.exit('Place 1\'s geometry not derived from recognizable type.')
+
+    if isinstance(place2, ogr.Geometry):
+        geometry2 = place2
+    elif isinstance(place2, ogr.Feature):
+        geometry2 = place2.GetGeometryRef()
+    else:
+        sys.exit('Place 2\'s geometry not derived from recognizable type.')
+
+    # Calculate distance according to specified method
+    if method == 'nearestToNearest':
+        return geometry1.Distance(geometry2)
+    elif method == 'centroidToCentroid':
+        return geometry1.Centroid().Distance(geometry2.Centroid())
+    elif method == 'nearestToCentroid':
+        return geometry1.Distance(geometry2.Centroid())
+    elif method == 'centroidToNearest':
+        return geometry1.Centroid().Distance(geometry2)
+
+
