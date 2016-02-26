@@ -1,3 +1,4 @@
+import sys
 import ogr
 import os
 import osr
@@ -199,7 +200,6 @@ def addNewFieldToShapefile(shapefilePath, fieldName, fieldType, fieldValues):
         layer.DeleteField(fieldIndex)
     fieldDefinition = ogr.FieldDefn(fieldName, ogrFieldType)
     layer.CreateField(fieldDefinition)
-
 
     # Loop through features to add values
     for FID, fieldValue in fieldValues.items():
@@ -420,9 +420,10 @@ def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
     inputDataSource.Destroy()
     outputDataSource.Destroy()
 
+
 def pointCSVToShapefile(csvPath, x, y, shapefilePath, EPSG=4326):
 
-    # Read in point data from CSV
+    # Read in point data from CSV and get field names
     pointDataFrame = pandas.read_csv(csvPath)
     fieldNames = pointDataFrame.columns.values.tolist()
     fieldNames.remove(x)
@@ -432,20 +433,56 @@ def pointCSVToShapefile(csvPath, x, y, shapefilePath, EPSG=4326):
     shapefileDriver = ogr.GetDriverByName('ESRI Shapefile')
     if os.path.exists(shapefilePath):
         shapefileDriver.DeleteDataSource(shapefilePath)
-    outputDataSource = shapefileDriver.CreateDataSource(shapefilePath)
-    outputLayerName = os.path.splitext(os.path.basename(shapefilePath))[0]
-    outputLayer = outputDataSource.CreateLayer(outputLayerName)
+    dataSource = shapefileDriver.CreateDataSource(shapefilePath)
+    layerName = os.path.splitext(os.path.basename(shapefilePath))[0]
+    layer = dataSource.CreateLayer(layerName)
 
     # Add fields to the output shapefile
     for fieldName in fieldNames:
         fieldDefinition = ogr.FieldDefn()
         fieldDefinition.SetName(fieldName)
-        outputLayer.CreateField(fieldDefinition)
+        layer.CreateField(fieldDefinition)
 
-    # Add features to the output shapefile
+    # Add features to the shapefile based on feature definition from above
+    featureDefinition = layer.GetLayerDefn()
+    feature = ogr.Feature(featureDefinition)
+    point = ogr.Geometry(ogr.wkbPoint)
+    for index, values in pointDataFrame.iterrows():
 
+        # Add geometry
+        point.AddPoint(values[x], values[y])
+        feature.SetGeometry(point)
 
+        # Add field values
+        for fieldName in fieldNames:
+            feature.SetField(fieldName, values[fieldName])
+
+        # Add feature to shapefile
+        layer.CreateFeature(feature)
+
+    # Define projection
+    createPrjFile(EPSG, shapefilePath)
+
+    dataSource.Destroy()
     return
 
+
+def createPrjFile(projectionInfo, shapefilePath):
+
+    if isinstance(projectionInfo, int):
+        spatialReference = osr.SpatialReference()
+        spatialReference.ImportFromEPSG(projectionInfo)
+    elif isinstance(projectionInfo, osr.SpatialReference):
+        spatialReference = projectionInfo
+    else:
+        sys.exit('Projection info not recognized.')
+
+    spatialReference.MorphToESRI()
+
+    prjPath = shapefilePath[:-3] + 'prj'
+    with open(prjPath, 'w') as file:
+        file.write(spatialReference.ExportToWkt())
+
+    return prjPath
 
 
