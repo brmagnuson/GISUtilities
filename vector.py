@@ -69,7 +69,7 @@ def reprojectShapefile(inputShapefilePath, outputShapefilePath, outputEPSG):
     coordinateTransformation = osr.CoordinateTransformation(inputSpatialRef, outputSpatialRef)
 
     # Loop through the features in input file
-    for i in range(0, inputLayer.GetFeatureCount()):
+    for i in range(inputLayer.GetFeatureCount()):
 
         # Get input feature
         inputFeature = inputLayer.GetFeature(i)
@@ -90,10 +90,7 @@ def reprojectShapefile(inputShapefilePath, outputShapefilePath, outputEPSG):
         outputFeature.Destroy()
 
     # Generate .prj file
-    outputSpatialRef.MorphToESRI()
-    with open(outputShapefilePath[:-3] + 'prj', 'w') as file:
-        file.write(outputSpatialRef.ExportToWkt())
-
+    createPrjFile(outputSpatialRef, outputShapefilePath)
     print 'Reprojected File: ' + inputShapefilePath
 
     # Close files
@@ -124,11 +121,7 @@ def mergeShapefiles(inputShapefilePaths, outputShapefilePath):
 
     # Set spatial reference for output shapefile using arbitrary input file
     inputSpatialReference = inputLayer.GetSpatialRef()
-    outputSpatialReference = osr.SpatialReference()
-    outputSpatialReference.ImportFromWkt(inputSpatialReference.ExportToWkt())
-    outputSpatialReference.MorphToESRI()
-    with open(outputShapefilePath[:-3] + 'prj', 'w') as file:
-        file.write(outputSpatialReference.ExportToWkt())
+    createPrjFile(inputSpatialReference, outputShapefilePath)
 
     inputDataSource.Destroy()
 
@@ -141,7 +134,7 @@ def mergeShapefiles(inputShapefilePaths, outputShapefilePath):
         inputLayer = inputDataSource.GetLayer()
 
         # Loop through features in input file
-        for i in range(0, inputLayer.GetFeatureCount()):
+        for i in range(inputLayer.GetFeatureCount()):
 
             # Get the input feature
             inputFeature = inputLayer.GetFeature(i)
@@ -395,9 +388,7 @@ def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
     outputSpatialReference.ImportFromWkt(inputSpatialReference.ExportToWkt())
 
     # Generate .prj file
-    outputSpatialReference.MorphToESRI()
-    with open(outputShapefilePath[:-3] + 'prj', 'w') as file:
-        file.write(outputSpatialReference.ExportToWkt())
+    createPrjFile(outputSpatialReference, outputShapefilePath)
 
     # Loop through the features in input file
     for inputFeature in inputLayer:
@@ -463,6 +454,7 @@ def pointCSVToShapefile(csvPath, x, y, shapefilePath, EPSG=4326):
     # Define projection
     createPrjFile(EPSG, shapefilePath)
 
+    # Close data source.
     dataSource.Destroy()
     return
 
