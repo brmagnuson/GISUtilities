@@ -15,12 +15,15 @@ def copyLayerFieldDefinitions(fromLayer, toLayer):
         fieldDefinition = featureDefinition.GetFieldDefn(i)
         toLayer.CreateField(fieldDefinition)
 
+    return
 
-def copyFeatureFieldValues(fromFeature, toFeature, toDriver):
+
+def copyFeatureFieldValues(fromFeature, toFeature, isShapefile=True):
     """Copy field values from one feature to another.
     This assumes that the features have the same fields!
     :param fromFeature: feature object that contains the data to copy
     :param toFeature: feature object that the data is to be copied into
+    :param isShapefile: True if toFeature is from a shapefile, False otherwise.
     """
     for i in range(fromFeature.GetFieldCount()):
         fieldName = fromFeature.GetFieldDefnRef(i).GetName()
@@ -29,7 +32,7 @@ def copyFeatureFieldValues(fromFeature, toFeature, toDriver):
         if fromFeature.GetField(fieldName) != None:
 
             # Deal with shapefile field name length limitation of 10 characters
-            if toDriver.GetName == 'ESRI Shapefile':
+            if isShapefile:
                 if len(fieldName) > 10:
                     toFeature.SetField(fieldName[:10], fromFeature.GetField(fieldName))
                 else:
@@ -37,26 +40,20 @@ def copyFeatureFieldValues(fromFeature, toFeature, toDriver):
             else:
                 toFeature.SetField(fieldName, fromFeature.GetField(fieldName))
 
+    return
 
-def reprojectShapefile(inputShapefilePath, outputShapefilePath, outputEPSG):
+
+def reprojectSpatialFile(inputFilePath, outputFilePath, driverName, outputEPSG):
     """
-    Reprojects a shapefile from one projected coordinate system to another based on EPSG number.
+    Reprojects a spatial file from one projected coordinate system to another based on EPSG number.
     """
-    driver = ogr.GetDriverByName('ESRI Shapefile')
 
-    # Create empty out file
-    if os.path.exists(outputShapefilePath):
-        driver.DeleteDataSource(outputShapefilePath)
-    outputDataSource = driver.CreateDataSource(outputShapefilePath)
-    outputLayerName = os.path.splitext(os.path.basename(outputShapefilePath))[0]
+    # Get geometry from input file
+    inputLayer, inputDataSource = getLayer(inputFilePath, driverName)
+    geomType = inputLayer.GetLayerDefn().GetGeomType()
 
-    # Set geometry and field definitions from input file
-    inputDataSource = driver.Open(inputShapefilePath)
-    if inputDataSource is None:
-        raise Exception('Could not open', inputDataSource)
-    inputLayer = inputDataSource.GetLayer()
-    inputLayerDefinition = inputLayer.GetLayerDefn()
-    outputLayer = outputDataSource.CreateLayer(outputLayerName, geom_type=inputLayerDefinition.GetGeomType())
+    # Create empty out file based on input file
+    outputLayer, outputDataSource = createLayer(outputFilePath, driverName, geomType)
     copyLayerFieldDefinitions(inputLayer, outputLayer)
 
     # Get layer definition for the output file
@@ -83,55 +80,55 @@ def reprojectShapefile(inputShapefilePath, outputShapefilePath, outputEPSG):
 
         # Set geometry and field values
         outputFeature.SetGeometry(geometry)
-        copyFeatureFieldValues(inputFeature, outputFeature, driver)
+        copyFeatureFieldValues(inputFeature, outputFeature)
 
         # Write out to output shapefile
         outputLayer.CreateFeature(outputFeature)
         outputFeature.Destroy()
 
     # Generate .prj file
-    createPrjFile(outputSpatialRef, outputShapefilePath)
-    print 'Reprojected File: ' + inputShapefilePath
+    createPrjFile(outputSpatialRef, outputFilePath)
+    print 'Reprojected File: ' + inputFilePath
 
-    # Close files
+    # Make sure data sources are closed
     inputDataSource.Destroy()
     outputDataSource.Destroy()
+    return
 
 
-def mergeShapefiles(inputShapefilePaths, outputShapefilePath):
+def mergeSpatialFiles(inputFilePaths, outputFilePath, driverName):
     """
-    :param inputShapefilesPaths: List of shapefiles to merge. (Files must all be in same projection)
-    :param outputShapefilePath: New shapefile containing merged features
+    :param inputFilePaths: List of files to merge. (Files must all be in same projection)
+    :param outputFilePath: New file containing merged features
     :return:
     """
-    driver = ogr.GetDriverByName('ESRI Shapefile')
 
-    # Create empty output file
-    if os.path.exists(outputShapefilePath):
-        driver.DeleteDataSource(outputShapefilePath)
-    outputDataSource = driver.CreateDataSource(outputShapefilePath)
-    outputLayerName = os.path.splitext(os.path.basename(outputShapefilePath))[0]
+    # Determine if we're working with a shapefile
+    if driverName == 'ESRI Shapefile':
+        isShapefile = True
+    else:
+        isShapefile = False
 
-    # Set geometry and field definitions from arbitrary input file
-    inputDataSource = driver.Open(inputShapefilePaths[0])
-    inputLayer = inputDataSource.GetLayer()
-    inputLayerDefinition = inputLayer.GetLayerDefn()
-    outputLayer = outputDataSource.CreateLayer(outputLayerName, geom_type=inputLayerDefinition.GetGeomType())
+    # Get geometry from arbitrary input file
+    inputLayer, inputDataSource = getLayer(inputFilePaths[0], driverName)
+    geomType = inputLayer.GetLayerDefn().GetGeomType()
+
+    # Create empty out file based on arbitrary input file
+    outputLayer, outputDataSource = createLayer(outputFilePath, driverName, geomType)
     copyLayerFieldDefinitions(inputLayer, outputLayer)
 
-    # Set spatial reference for output shapefile using arbitrary input file
+    # Set spatial reference for output file using arbitrary input file
     inputSpatialReference = inputLayer.GetSpatialRef()
-    createPrjFile(inputSpatialReference, outputShapefilePath)
+    createPrjFile(inputSpatialReference, outputFilePath)
 
     inputDataSource.Destroy()
 
     # Loop through input files
     outputLayerDefinition = outputLayer.GetLayerDefn()
-    for inputShapefilePath in inputShapefilePaths:
+    for inputFilePath in inputFilePaths:
 
         # Read input file
-        inputDataSource = driver.Open(inputShapefilePath)
-        inputLayer = inputDataSource.GetLayer()
+        inputLayer, inputDataSource = getLayer(inputFilePath, driverName)
 
         # Loop through features in input file
         for i in range(inputLayer.GetFeatureCount()):
@@ -145,33 +142,30 @@ def mergeShapefiles(inputShapefilePaths, outputShapefilePath):
             # Set geometry and field values
             geometry = inputFeature.GetGeometryRef()
             outputFeature.SetGeometry(geometry)
-            copyFeatureFieldValues(inputFeature, outputFeature, driver)
+            copyFeatureFieldValues(inputFeature, outputFeature, isShapefile)
 
             # Write out to output shapefile
             outputLayer.CreateFeature(outputFeature)
 
             outputFeature.Destroy()
 
-        # Close input file
+        # Close input data source
         inputDataSource.Destroy()
 
-        print 'Processed File: ' + inputShapefilePath
+        print 'Processed File: ' + inputFilePath
 
-    # Close output file
-    outputDataSource.Destroy()
+    return
 
 
-def addNewFieldToShapefile(shapefilePath, fieldName, fieldType, fieldValues):
+def addNewFieldToSpatialFile(filePath, driverName, fieldName, fieldType, fieldValues):
     """
-    :param shapefilePath:
+    :param filePath:
     :param fieldName: Name to give new field
     :param fieldType: 'Integer', 'Float', or 'String'
     :param fieldValues: Must be a dictionary of form FID:Value
     """
-    # Open shapefile
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-    shapefile = driver.Open(shapefilePath, 1)
-    layer = shapefile.GetLayer()
+    # Open file
+    layer, dataSource = getLayer(filePath, driverName, mode=1)
 
     # Make sure fieldName is 10 characters or less because of shapefile limitations
     if len(fieldName) > 10:
@@ -208,8 +202,7 @@ def addNewFieldToShapefile(shapefilePath, fieldName, fieldType, fieldValues):
         feature.SetField(fieldName, fieldValue)
         layer.SetFeature(feature)
 
-        if FID % 25 == 0:
-            print 'Processed FID: ' + str(FID)
+    return
 
 
 def idToFID(shapefilePath, idFieldName):
@@ -220,9 +213,7 @@ def idToFID(shapefilePath, idFieldName):
     :return: dictionary in form {idFieldValue: FID}
     """
     # Open shapefile
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-    shapefile = driver.Open(shapefilePath)
-    layer = shapefile.GetLayer()
+    layer, dataSource = getLayer(shapefilePath, 'ESRI Shapefile')
 
     # Loop through all the features to build dictionary of id & FID
     idToFIDDictionary = {}
@@ -236,18 +227,17 @@ def idToFID(shapefilePath, idFieldName):
     return idToFIDDictionary
 
 
-def fieldDifference(shapefilePath, fieldName1, fieldName2, newFieldName):
+def fieldDifference(filePath, driverName, fieldName1, fieldName2, newFieldName):
     """
-
-    :param shapefilePath:
+    Finds the difference between two fields and adds that two the spatial file
+    :param filePath:
+    :param driverName:
     :param existingFieldName:
     :param newFieldName:
     :return:
     """
     # Open shapefile
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-    shapefile = driver.Open(shapefilePath)
-    layer = shapefile.GetLayer()
+    layer, dataSource = getLayer(filePath, driverName)
 
     # Loop through layer to calculate difference between fields {FID:newFieldValue}
     newFieldValues = {}
@@ -261,21 +251,20 @@ def fieldDifference(shapefilePath, fieldName1, fieldName2, newFieldName):
         newFieldValues[fid] = newFieldValue
 
     # Feed that new dictionary into addNewFieldToShapefile
-    addNewFieldToShapefile(shapefilePath, newFieldName, 'Float', newFieldValues)
+    addNewFieldToSpatialFile(filePath, driverName, newFieldName, 'Float', newFieldValues)
+    return
 
 
-def scaleField(shapefilePath, existingFieldName, newFieldName):
+def scaleField(filePath, driverName, existingFieldName, newFieldName):
     """
-
-    :param shapefilePath:
+    Scales field from 0 to 1 and adds that to the shapefile
+    :param filePath:
     :param existingFieldName:
     :param newFieldName:
     :return:
     """
     # Open shapefile
-    driver = ogr.GetDriverByName('ESRI Shapefile')
-    shapefile = driver.Open(shapefilePath)
-    layer = shapefile.GetLayer()
+    layer, dataSource = getLayer(filePath, driverName)
 
     # Loop through features to get minimum and maximum value
     minValue = float('inf')
@@ -309,7 +298,8 @@ def scaleField(shapefilePath, existingFieldName, newFieldName):
             scaledFieldValues[fid] = scaledValue
 
     # Feed that new dictionary into addNewFieldToShapefile
-    addNewFieldToShapefile(shapefilePath, newFieldName, 'Float', scaledFieldValues)
+    addNewFieldToSpatialFile(filePath, driverName, newFieldName, 'Float', scaledFieldValues)
+    return
 
 
 def deleteField(shapefilePath, fieldName):
@@ -331,6 +321,9 @@ def deleteField(shapefilePath, fieldName):
     else:
         layer.DeleteField(fieldIndex)
 
+    return
+
+
 def conditionallyDeleteFeature(shapefilePath, fieldName, fieldValue):
     """
     Should not run this function on a shapefile already open in write mode.
@@ -351,6 +344,8 @@ def conditionallyDeleteFeature(shapefilePath, fieldName, fieldValue):
             print 'Deleting field ' + fid
             layer.DeleteFeature(fid)
 
+    return
+
 
 def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
     """
@@ -360,23 +355,12 @@ def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
     :param outputShapefilePath:
     :return:
     """
-    # Open input file
-    osmDriver = ogr.GetDriverByName('OSM')
-    inputDataSource = osmDriver.Open(inputOsmPath)
-    if inputDataSource is None:
-        raise Exception('Could not open', inputDataSource)
-    inputLayer = inputDataSource.GetLayer(layerToUse)
+    # Get geometry from input file
+    inputLayer, inputDataSource = getLayer(inputOsmPath, 'OSM', osmLayer=layerToUse)
+    geomType = inputLayer.GetLayerDefn().GetGeomType()
 
-    # Create empty output file
-    shapefileDriver = ogr.GetDriverByName('ESRI Shapefile')
-    if os.path.exists(outputShapefilePath):
-        shapefileDriver.DeleteDataSource(outputShapefilePath)
-    outputDataSource = shapefileDriver.CreateDataSource(outputShapefilePath)
-    outputLayerName = os.path.splitext(os.path.basename(outputShapefilePath))[0]
-
-    # Set geometry and field definitions from input file
-    inputLayerDefinition = inputLayer.GetLayerDefn()
-    outputLayer = outputDataSource.CreateLayer(outputLayerName, geom_type=inputLayerDefinition.GetGeomType())
+    # Create empty out file based on input file
+    outputLayer, outputDataSource = createLayer(outputShapefilePath, 'ESRI Shapefile', geomType)
     copyLayerFieldDefinitions(inputLayer, outputLayer)
 
     # Get layer definition for the output file
@@ -399,7 +383,7 @@ def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
         # Set geometry and field values
         geometry = inputFeature.GetGeometryRef()
         outputFeature.SetGeometry(geometry)
-        copyFeatureFieldValues(inputFeature, outputFeature, shapefileDriver)
+        copyFeatureFieldValues(inputFeature, outputFeature)
 
         # Write out to output shapefile
         outputLayer.CreateFeature(outputFeature)
@@ -410,6 +394,7 @@ def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
     # Close files
     inputDataSource.Destroy()
     outputDataSource.Destroy()
+    return
 
 
 def pointCSVToShapefile(csvPath, x, y, shapefilePath, EPSG=4326):
@@ -421,12 +406,7 @@ def pointCSVToShapefile(csvPath, x, y, shapefilePath, EPSG=4326):
     fieldNames.remove(y)
 
     # Create empty output file
-    shapefileDriver = ogr.GetDriverByName('ESRI Shapefile')
-    if os.path.exists(shapefilePath):
-        shapefileDriver.DeleteDataSource(shapefilePath)
-    dataSource = shapefileDriver.CreateDataSource(shapefilePath)
-    layerName = os.path.splitext(os.path.basename(shapefilePath))[0]
-    layer = dataSource.CreateLayer(layerName)
+    layer, dataSource = createLayer(shapefilePath, 'ESRI Shapefile', ogr.wkbPoint)
 
     # Add fields to the output shapefile
     for fieldName in fieldNames:
@@ -472,8 +452,8 @@ def createPrjFile(projectionInfo, shapefilePath):
     spatialReference.MorphToESRI()
 
     prjPath = shapefilePath[:-3] + 'prj'
-    with open(prjPath, 'w') as file:
-        file.write(spatialReference.ExportToWkt())
+    with open(prjPath, 'w') as prjFile:
+        prjFile.write(spatialReference.ExportToWkt())
 
     return prjPath
 
@@ -504,5 +484,48 @@ def calculateDistance(place1, place2, method='nearestToNearest'):
         return geometry1.Distance(geometry2.Centroid())
     elif method == 'centroidToNearest':
         return geometry1.Centroid().Distance(geometry2)
+
+
+def getLayer(filePath, driverName, mode=0, osmLayer=None):
+    """
+
+    :param filePath:
+    :param driverName:
+    :param mode: 0 to read, 1 to write
+    :param osmLayer: 0 for points, 1 for lines, 2 for multilines, 3 for multipolygons, 4 for other relations
+    :return:
+    """
+
+    # Open the data source (with specific driver if given)
+    driver = ogr.GetDriverByName(driverName)
+    dataSource = driver.Open(filePath, mode)
+
+    # Make sure data source was properly opened before getting the layer
+    if dataSource is None:
+        raise Exception('Could not open', dataSource)
+
+    # Get the layer
+    if osmLayer is not None:
+        layer = dataSource.GetLayer(osmLayer)
+    else:
+        layer = dataSource.GetLayer()
+
+    # Must return both layer and dataSource to previous scope to prevent layer from becoming unusable & causing crash.
+    return layer, dataSource
+
+
+def createLayer(filePath, driverName, geometryType):
+
+    driver = ogr.GetDriverByName(driverName)
+
+    # Create empty file
+    if os.path.exists(filePath):
+        driver.DeleteDataSource(filePath)
+    dataSource = driver.CreateDataSource(filePath)
+    layerName = os.path.splitext(os.path.basename(filePath))[0]
+    layer = dataSource.CreateLayer(layerName, geom_type=geometryType)
+
+    # Must return both layer and dataSource to previous scope to prevent layer from becoming unusable & causing crash.
+    return layer, dataSource
 
 
