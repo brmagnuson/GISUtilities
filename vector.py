@@ -84,15 +84,11 @@ def reprojectSpatialFile(inputFilePath, outputFilePath, driverName, outputEPSG):
 
         # Write out to output shapefile
         outputLayer.CreateFeature(outputFeature)
-        outputFeature.Destroy()
 
     # Generate .prj file
     createPrjFile(outputSpatialRef, outputFilePath)
     print 'Reprojected File: ' + inputFilePath
 
-    # Make sure data sources are closed
-    inputDataSource.Destroy()
-    outputDataSource.Destroy()
     return
 
 
@@ -121,8 +117,6 @@ def mergeSpatialFiles(inputFilePaths, outputFilePath, driverName):
     inputSpatialReference = inputLayer.GetSpatialRef()
     createPrjFile(inputSpatialReference, outputFilePath)
 
-    inputDataSource.Destroy()
-
     # Loop through input files
     outputLayerDefinition = outputLayer.GetLayerDefn()
     for inputFilePath in inputFilePaths:
@@ -146,11 +140,6 @@ def mergeSpatialFiles(inputFilePaths, outputFilePath, driverName):
 
             # Write out to output shapefile
             outputLayer.CreateFeature(outputFeature)
-
-            outputFeature.Destroy()
-
-        # Close input data source
-        inputDataSource.Destroy()
 
         print 'Processed File: ' + inputFilePath
 
@@ -387,13 +376,8 @@ def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
 
         # Write out to output shapefile
         outputLayer.CreateFeature(outputFeature)
-        outputFeature.Destroy()
 
     print 'Created Shapefile from ' + inputOsmPath
-
-    # Close files
-    inputDataSource.Destroy()
-    outputDataSource.Destroy()
     return
 
 
@@ -433,9 +417,6 @@ def pointCSVToShapefile(csvPath, x, y, shapefilePath, EPSG=4326):
 
     # Define projection
     createPrjFile(EPSG, shapefilePath)
-
-    # Close data source.
-    dataSource.Destroy()
     return
 
 

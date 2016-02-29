@@ -143,7 +143,6 @@ def loop_zonal_stats(shapefilePath, rasterPath, minAllowableValue, maxAllowableV
         if FID % 25 == 0:
             print 'Processed FID: ' + str(FID)
 
-    dataSource.Destroy()
     return statDict
 
 
