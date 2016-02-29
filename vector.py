@@ -90,13 +90,14 @@ def reprojectSpatialFile(inputFilePath, outputFilePath, driverName, outputEPSG):
         outputFeature.SetGeometry(geometry)
         copyFeatureFieldValues(inputFeature, outputFeature)
 
-        # Write out to output shapefile
+        # Write out to output file
         outputLayer.CreateFeature(outputFeature)
 
-    # Generate .prj file
-    createPrjFile(outputSpatialRef, outputFilePath)
-    print 'Reprojected File: ' + inputFilePath
+    # Generate .prj file if working with shapefiles
+    if driverName == 'ESRI Shapefile':
+        createPrjFile(outputSpatialRef, outputFilePath)
 
+    print 'Reprojected File: ' + inputFilePath
     return
 
 
@@ -125,7 +126,10 @@ def mergeSpatialFiles(inputFilePaths, outputFilePath, driverName):
 
     # Set spatial reference for output file using arbitrary input file
     inputSpatialReference = inputLayer.GetSpatialRef()
-    createPrjFile(inputSpatialReference, outputFilePath)
+
+    # Generate .prj file if working with shapefiles
+    if driverName == 'ESRI Shapefile':
+        createPrjFile(inputSpatialReference, outputFilePath)
 
     # Loop through input files
     outputLayerDefinition = outputLayer.GetLayerDefn()
