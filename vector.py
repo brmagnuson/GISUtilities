@@ -6,9 +6,11 @@ import pandas
 
 
 def copyLayerFieldDefinitions(fromLayer, toLayer):
-    """Copy field definitions (not data) from one layer to another.
+    """
+    Copy field definitions (not data) from one layer to another
     :param fromLayer: layer object that contains the field definitions to copy
     :param toLayer: layer object to copy the field definitions into
+    :return
     """
     featureDefinition = fromLayer.GetLayerDefn()
     for i in range(featureDefinition.GetFieldCount()):
@@ -19,17 +21,18 @@ def copyLayerFieldDefinitions(fromLayer, toLayer):
 
 
 def copyFeatureFieldValues(fromFeature, toFeature, isShapefile=True):
-    """Copy field values from one feature to another.
-    This assumes that the features have the same fields!
+    """
+    Copy field values from one feature to another. Note that this assumes that the features have the same fields!
     :param fromFeature: feature object that contains the data to copy
     :param toFeature: feature object that the data is to be copied into
-    :param isShapefile: True if toFeature is from a shapefile, False otherwise.
+    :param isShapefile: True if toFeature is from a shapefile, False otherwise
+    :return
     """
     for i in range(fromFeature.GetFieldCount()):
         fieldName = fromFeature.GetFieldDefnRef(i).GetName()
 
         # Set field as long as its value is not None
-        if fromFeature.GetField(fieldName) != None:
+        if fromFeature.GetField(fieldName) is not None:
 
             # Deal with shapefile field name length limitation of 10 characters
             if isShapefile:
@@ -46,6 +49,11 @@ def copyFeatureFieldValues(fromFeature, toFeature, isShapefile=True):
 def reprojectSpatialFile(inputFilePath, outputFilePath, driverName, outputEPSG):
     """
     Reprojects a spatial file from one projected coordinate system to another based on EPSG number.
+    :param inputFilePath: String. Path to existing spatial file
+    :param outputFilePath: String. Path to new spatial file
+    :param driverName: String. Type of spatial file (eg, 'ESRI Shapefile', 'OSM', 'GeoJSON', 'KML', 'SQLite')
+    :param outputEPSG: Int. EPSG code for new projection
+    :return:
     """
 
     # Get geometry from input file
@@ -94,8 +102,10 @@ def reprojectSpatialFile(inputFilePath, outputFilePath, driverName, outputEPSG):
 
 def mergeSpatialFiles(inputFilePaths, outputFilePath, driverName):
     """
+    This function stitches together a list of spatial files into one large file
     :param inputFilePaths: List of files to merge. (Files must all be in same projection)
     :param outputFilePath: New file containing merged features
+    :param driverName: String. Type of spatial file (eg, 'ESRI Shapefile', 'OSM', 'GeoJSON', 'KML', 'SQLite')
     :return:
     """
 
@@ -148,10 +158,14 @@ def mergeSpatialFiles(inputFilePaths, outputFilePath, driverName):
 
 def addNewFieldToSpatialFile(filePath, driverName, fieldName, fieldType, fieldValues):
     """
-    :param filePath:
+    Adds a new field with values to a spatial file
+    WARNING: Should not use on file already open in write mode!
+    :param filePath: String. Path to existing spatial file
+    :param driverName: String. Type of spatial file (eg, 'ESRI Shapefile', 'OSM', 'GeoJSON', 'KML', 'SQLite')
     :param fieldName: Name to give new field
     :param fieldType: 'Integer', 'Float', or 'String'
     :param fieldValues: Must be a dictionary of form FID:Value
+    :return
     """
     # Open file
     layer, dataSource = getLayer(filePath, driverName, mode=1)
@@ -180,7 +194,7 @@ def addNewFieldToSpatialFile(filePath, driverName, fieldName, fieldType, fieldVa
     # Loop through features to add values
     for FID, fieldValue in fieldValues.items():
 
-        if fieldValue == None:
+        if fieldValue is None:
             print 'FID ' + str(FID) + ' had None value.'
             continue
 
@@ -197,9 +211,9 @@ def addNewFieldToSpatialFile(filePath, driverName, fieldName, fieldType, fieldVa
 def idToFID(shapefilePath, idFieldName):
     """
     Maps explicit IDs named in one of the shapefile's fields to that feature's FID
-    :param shapefilePath:
+    :param shapefilePath: String. Path to existing shapefile
     :param idFieldName: each value in this field should be a unique identifier
-    :return: dictionary in form {idFieldValue: FID}
+    :return: Dictionary in form {idFieldValue: FID}
     """
     # Open shapefile
     layer, dataSource = getLayer(shapefilePath, 'ESRI Shapefile')
@@ -209,8 +223,8 @@ def idToFID(shapefilePath, idFieldName):
     feature = layer.GetNextFeature()
     while feature:
         fid = feature.GetFID()
-        id = feature.GetField(idFieldName)
-        idToFIDDictionary[id] = fid
+        explicitID = feature.GetField(idFieldName)
+        idToFIDDictionary[explicitID] = fid
         feature = layer.GetNextFeature()
 
     return idToFIDDictionary
@@ -218,14 +232,15 @@ def idToFID(shapefilePath, idFieldName):
 
 def fieldDifference(filePath, driverName, fieldName1, fieldName2, newFieldName):
     """
-    Finds the difference between two fields and adds that two the spatial file
-    :param filePath:
-    :param driverName:
-    :param existingFieldName:
-    :param newFieldName:
+    Finds the difference between two fields and adds that to the spatial file
+    :param filePath: String. Path to existing spatial file
+    :param driverName: String. Type of spatial file (eg, 'ESRI Shapefile', 'OSM', 'GeoJSON', 'KML', 'SQLite')
+    :param fieldName1: String. Name of first field
+    :param fieldName2: String. Name of second field
+    :param newFieldName: String. Name of newly generated field
     :return:
     """
-    # Open shapefile
+    # Open spatial file
     layer, dataSource = getLayer(filePath, driverName)
 
     # Loop through layer to calculate difference between fields {FID:newFieldValue}
@@ -234,25 +249,26 @@ def fieldDifference(filePath, driverName, fieldName1, fieldName2, newFieldName):
         fid = feature.GetFID()
         fieldValue1 = feature.GetField(fieldName1)
         fieldValue2 = feature.GetField(fieldName2)
-        if fieldValue1 == None or fieldValue2 == None:
+        if fieldValue1 is None or fieldValue2 is None:
             continue
         newFieldValue = fieldValue1 - fieldValue2
         newFieldValues[fid] = newFieldValue
 
-    # Feed that new dictionary into addNewFieldToShapefile
+    # Feed that new dictionary into addNewFieldToSpatialFile
     addNewFieldToSpatialFile(filePath, driverName, newFieldName, 'Float', newFieldValues)
     return
 
 
 def scaleField(filePath, driverName, existingFieldName, newFieldName):
     """
-    Scales field from 0 to 1 and adds that to the shapefile
-    :param filePath:
-    :param existingFieldName:
-    :param newFieldName:
+    Scales field from 0 to 1 and adds that information to the spatial file
+    :param filePath: String. Path to existing spatial file
+    :param driverName: String. Type of spatial file (eg, 'ESRI Shapefile', 'OSM', 'GeoJSON', 'KML', 'SQLite')
+    :param existingFieldName: String. Name of field of interest
+    :param newFieldName: String. Name of new field
     :return:
     """
-    # Open shapefile
+    # Open spatial file
     layer, dataSource = getLayer(filePath, driverName)
 
     # Loop through features to get minimum and maximum value
@@ -260,7 +276,7 @@ def scaleField(filePath, driverName, existingFieldName, newFieldName):
     maxValue = float('-inf')
     for feature in layer:
         fieldValue = feature.GetField(existingFieldName)
-        if fieldValue == None:
+        if fieldValue is None:
             continue
         if fieldValue < minValue:
             minValue = fieldValue
@@ -276,26 +292,29 @@ def scaleField(filePath, driverName, existingFieldName, newFieldName):
         existingValue = feature.GetField(existingFieldName)
 
         # Pass None (NULL) values through
-        if existingValue == None:
+        if existingValue is None:
             continue
 
         # Discard 'nan' or 0 values, as these are likely data problems
-        if pandas.isnull(existingValue) or existingValue == 0:
+        # TODO: Want to keep 0 in some cases, so maybe replacing 0 with NULL for certain fields should be own function
+        # if pandas.isnull(existingValue) or existingValue == 0:
+        if pandas.isnull(existingValue):
             scaledFieldValues[fid] = None
         else:
             scaledValue = ((existingValue - minValue) * 1.0) / (maxValue - minValue)
             scaledFieldValues[fid] = scaledValue
 
-    # Feed that new dictionary into addNewFieldToShapefile
+    # Feed that new dictionary into addNewFieldToSpatialFile
     addNewFieldToSpatialFile(filePath, driverName, newFieldName, 'Float', scaledFieldValues)
     return
 
 
 def deleteField(shapefilePath, fieldName):
     """
-    Should not run this function on a shapefile already open in write mode.
-    :param shapefilePath:
-    :param fieldName:
+    Deletes a field from a spatialFile
+    WARNING: Should not run this function on a shapefile already open in write mode!
+    :param shapefilePath: String. Path to existing shapefile
+    :param fieldName: String. Name of field of interest
     :return:
     """
     # Open shapefile
@@ -315,10 +334,11 @@ def deleteField(shapefilePath, fieldName):
 
 def conditionallyDeleteFeature(shapefilePath, fieldName, fieldValue):
     """
-    Should not run this function on a shapefile already open in write mode.
-    :param shapefilePath:
-    :param fieldName:
-    :param fieldValue:
+    Deletes a feature who have a specific value for a certain field
+    WARNING: Should not run this function on a shapefile already open in write mode!
+    :param shapefilePath: String. Path to existing shapefile
+    :param fieldName: String. Name of field of interest
+    :param fieldValue: Value in field that triggers deletion of that feature
     :return:
     """
     # Open shapefile
@@ -329,8 +349,10 @@ def conditionallyDeleteFeature(shapefilePath, fieldName, fieldValue):
     # Check each feature for fieldValue
     for fid in range(layer.GetFeatureCount()):
         feature = layer.GetFeature(fid)
+
+        # Delete feature if value matches undesired value
         if feature.GetField(fieldName) == fieldValue:
-            print 'Deleting field ' + fid
+            print 'Deleting field ' + str(fid)
             layer.DeleteFeature(fid)
 
     return
@@ -338,10 +360,10 @@ def conditionallyDeleteFeature(shapefilePath, fieldName, fieldValue):
 
 def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
     """
-
-    :param inputOsmPath: can be .osm or .pbf file
+    This function converts an OSM file to a shapefile
+    :param inputOsmPath: String. Can be .osm or .pbf file
     :param layerToUse: 0 for points, 1 for lines, 2 for multilines, 3 for multipolygons, 4 for other relations
-    :param outputShapefilePath:
+    :param outputShapefilePath: String. Path to output location and file
     :return:
     """
     # Get geometry from input file
@@ -382,6 +404,15 @@ def osmToShapefile(inputOsmPath, layerToUse, outputShapefilePath):
 
 
 def pointCSVToShapefile(csvPath, x, y, shapefilePath, EPSG=4326):
+    """
+    This function creates a shapefile from a .csv file containing points and their attributes
+    :param csvPath: String. Path to .csv containing data
+    :param x: String. Name of field representing X (longitude)
+    :param y: String. Name of field representing Y (latitude)
+    :param shapefilePath: String. Path of shapefile that should be created
+    :param EPSG: Int. Code to represent projection
+    :return:
+    """
 
     # Read in point data from CSV and get field names
     pointDataFrame = pandas.read_csv(csvPath)
@@ -421,7 +452,14 @@ def pointCSVToShapefile(csvPath, x, y, shapefilePath, EPSG=4326):
 
 
 def createPrjFile(projectionInfo, shapefilePath):
+    """
+    This function creates a .prj file for an existing shapefile according to a specified projection
+    :param projectionInfo: EPSG code (as integer) or osr.SpatialReference object representing shapefile's projection
+    :param shapefilePath: String. Path to shapefile we're specifying the projection for
+    :return: String representing .prj file's path
+    """
 
+    # Get spatial reference information depending on how the projection info was passed in
     if isinstance(projectionInfo, int):
         spatialReference = osr.SpatialReference()
         spatialReference.ImportFromEPSG(projectionInfo)
@@ -430,8 +468,10 @@ def createPrjFile(projectionInfo, shapefilePath):
     else:
         sys.exit('Projection info not recognized.')
 
+    # Convert to ESRI's format
     spatialReference.MorphToESRI()
 
+    # Write out to .prj file
     prjPath = shapefilePath[:-3] + 'prj'
     with open(prjPath, 'w') as prjFile:
         prjFile.write(spatialReference.ExportToWkt())
@@ -440,8 +480,17 @@ def createPrjFile(projectionInfo, shapefilePath):
 
 
 def calculateDistance(place1, place2, method='nearestToNearest'):
+    """
+    This function calculates shortest distance (Euclidean) from place1 to place2
+    :param place1: Starting Feature/Geometry
+    :param place2: Ending Feature/Geometry
+    :param method: String. Specifies how to calculate distance. Options are 'nearestToNearest' (nearest edge to nearest
+    edge), 'nearestToCentroid' (nearest edge to centroid), 'centroidToNearest' (centroid to nearest edge), and
+    'centroidToCentroid'. Each option is in order 'place1ToPlace2'
+    :return: Float
+    """
 
-    # Get geometry
+    # Get geometry object for each place, since Feature doesn't have a geometry method
     if isinstance(place1, ogr.Geometry):
         geometry1 = place1
     elif isinstance(place1, ogr.Feature):
@@ -456,7 +505,7 @@ def calculateDistance(place1, place2, method='nearestToNearest'):
     else:
         sys.exit('Place 2\'s geometry not derived from recognizable type.')
 
-    # Calculate distance according to specified method
+    # Calculate distance according to specified method and return that value
     if method == 'nearestToNearest':
         return geometry1.Distance(geometry2)
     elif method == 'centroidToCentroid':
@@ -469,12 +518,12 @@ def calculateDistance(place1, place2, method='nearestToNearest'):
 
 def getLayer(filePath, driverName, mode=0, osmLayer=None):
     """
-
-    :param filePath:
-    :param driverName:
+    This function reads in an existing spatial file and returns its layer and data source (to keep it in scope)
+    :param filePath: String. Path to spatial file
+    :param driverName: String. Type of spatial file (eg, 'ESRI Shapefile', 'OSM', 'GeoJSON', 'KML', 'SQLite')
     :param mode: 0 to read, 1 to write
     :param osmLayer: 0 for points, 1 for lines, 2 for multilines, 3 for multipolygons, 4 for other relations
-    :return:
+    :return: Layer, DataSource
     """
 
     # Open the data source (with specific driver if given)
@@ -491,12 +540,20 @@ def getLayer(filePath, driverName, mode=0, osmLayer=None):
     else:
         layer = dataSource.GetLayer()
 
-    # Must return both layer and dataSource to previous scope to prevent layer from becoming unusable & causing crash.
+    # Must return both layer and dataSource to previous scope to prevent layer from becoming unusable & causing crash
     return layer, dataSource
 
 
 def createLayer(filePath, driverName, geometryType):
+    """
+    This function creates a new spatial file and returns its layer and data source (to keep it in scope)
+    :param filePath: String. Location of new spatial file
+    :param driverName: String. Type of spatial file (eg, 'ESRI Shapefile', 'OSM', 'GeoJSON', 'KML', 'SQLite')
+    :param geometryType: Geometry. Ex: ogr.wkbPoint, ogr.wkbPolygon
+    :return: Layer, DataSource
+    """
 
+    # Create appropriate driver
     driver = ogr.GetDriverByName(driverName)
 
     # Create empty file
@@ -506,15 +563,15 @@ def createLayer(filePath, driverName, geometryType):
     layerName = os.path.splitext(os.path.basename(filePath))[0]
     layer = dataSource.CreateLayer(layerName, geom_type=geometryType)
 
-    # Must return both layer and dataSource to previous scope to prevent layer from becoming unusable & causing crash.
+    # Must return both layer and dataSource to previous scope to prevent layer from becoming unusable & causing crash
     return layer, dataSource
 
 
 def getFeatureList(layer):
     """
     Takes a layer and returns a list of all its feature objects
-    :param layer:
-    :return:
+    :param layer: Layer object containing the set of features we want in list form
+    :return: List of Features
     """
     features = []
     for feature in layer:
@@ -525,28 +582,37 @@ def getFeatureList(layer):
 def findNearest(searchFeature, targetLayer, distanceMethod='nearestToNearest',
                 startBuffer=10000, bufferStep=200000, stopBuffer=1000000):
     """
-    This finds the nearest feature to the "search Feature" in the targetLayer.
-    :param searchFeature:
-    :param targetLayer:
-    :return:
+    This finds the nearest feature to the "search Feature" in the targetLayer
+    :param searchFeature: The feature or geometry we are starting our distance calculations from
+    :param targetLayer: Layer object containing the set of features we are comparing the searchFeature to
+    :param distanceMethod: Chosen method to calculate distance (see calculateDistance for options)
+    :param startBuffer: Starting size of the search buffer in layer's units
+    :param bufferStep: Increment of the search buffer in layer's units
+    :param stopBuffer: Distance at which you are no longer interested in finding the nearest (the search ceiling)
+    :return: nearest Feature
     """
 
     # Get geometry of search feature so we can buffer it
     searchGeometry = searchFeature.GetGeometryRef()
 
+    # Set initial parameters for search
     currentBuffer = startBuffer
     nearest = None
     minDistance = float('inf')
 
+    # Search the area around searchFeature for a targetFeature (avoids calculating distance for every targetFeature)
     while nearest is None and currentBuffer < stopBuffer:
 
         # Reduce the target layer to only those features within the buffered search area
         searchArea = searchGeometry.Buffer(currentBuffer)
         targetLayer.SetSpatialFilter(searchArea)
 
-        # If any target features are within the search area, find which one is closest to the search feature.
+        # If any target features are within the search area, find which one is closest to the search feature
         if targetLayer.GetFeatureCount() > 0:
+
             for targetFeature in targetLayer:
+
+                # If distance is less than the current minDistance, this is our new closest feature
                 distance = calculateDistance(searchFeature, targetFeature, distanceMethod)
                 if distance < minDistance:
                     nearest = targetFeature
@@ -561,20 +627,19 @@ def findNearest(searchFeature, targetLayer, distanceMethod='nearestToNearest',
     return nearest
 
 
-
-
-
 if __name__ == '__main__':
+
+    # Set parameters
     skiShapefile = '../../Data/SkiAreas/skiAreas.shp'
-    driverName = 'ESRI Shapefile'
+    driverType = 'ESRI Shapefile'
     albersSkiShapefile = os.path.splitext(skiShapefile)[0] + '_AlbersEqualAreaConic.shp'
 
-    skiAreaLayer, skiAreaDataSource = getLayer(albersSkiShapefile, driverName)
-    subLayer, subDataSource = getLayer('../../Data/USMergedCountySubs/USMergedCountySubs_AlbersEqualAreaConic.shp', driverName)
+    # Read in layers
+    skiAreaLayer, skiAreaDataSource = getLayer(albersSkiShapefile, driverType)
+    subLayer, subDataSource = getLayer('../../Data/USMergedCountySubs/USMergedCountySubs_AlbersEqualAreaConic.shp',
+                                       driverType)
 
+    # Find the nearest ski area to feature with FID 100
     testFeature = subLayer.GetFeature(100)
     nearestSkiArea = findNearest(testFeature, skiAreaLayer)
-    print nearestSkiArea
-
-
-
+    print nearestSkiArea.GetField('name')

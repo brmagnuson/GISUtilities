@@ -7,6 +7,15 @@ import vector
 
 
 def zonal_stats(feat, layer, raster, minAllowableValue, maxAllowableValue):
+    """
+    This function calculates the mean of a raster for a feature
+    :param feat: Feature we want statistics for
+    :param layer: Layer object containing feature
+    :param raster: Raster object containing values
+    :param minAllowableValue: Numeric. Minimum allowable value
+    :param maxAllowableValue: Numeric. Maximum allowable value
+    :return: Float representing mean of raster within feature
+    """
 
     # Get raster georeference info
     transform = raster.GetGeoTransform()
@@ -17,9 +26,10 @@ def zonal_stats(feat, layer, raster, minAllowableValue, maxAllowableValue):
 
     # Get extent of feat
     geom = feat.GetGeometryRef()
-    if (geom.GetGeometryName() == 'MULTIPOLYGON'):
+    if geom.GetGeometryName() == 'MULTIPOLYGON':
         count = 0
-        pointsX = []; pointsY = []
+        pointsX = []
+        pointsY = []
         for polygon in geom:
             geomInner = geom.GetGeometryRef(count)
             ring = geomInner.GetGeometryRef(0)
@@ -29,7 +39,7 @@ def zonal_stats(feat, layer, raster, minAllowableValue, maxAllowableValue):
                     pointsX.append(lon)
                     pointsY.append(lat)
             count += 1
-    elif (geom.GetGeometryName() == 'POLYGON'):
+    elif geom.GetGeometryName() == 'POLYGON':
         ring = geom.GetGeometryRef(0)
         numpoints = ring.GetPointCount()
         pointsX = []
@@ -95,9 +105,12 @@ def zonal_stats(feat, layer, raster, minAllowableValue, maxAllowableValue):
 
 def loop_zonal_stats(shapefilePath, rasterPath, minAllowableValue, maxAllowableValue):
     """
-    :param input_zone_polygon:
-    :param input_value_raster:
-    :return: Returns dictionary of Field ID: Mean raster value
+    This function calculates zonal statistics for each feature in a shapefile based on a raster.
+    :param shapefilePath: String. path to existing shapefile we want statistics for
+    :param rasterPath: String. Path to existing raster to use to get statistics
+    :param minAllowableValue: Numeric. Minimum allowable value
+    :param maxAllowableValue: Numeric. Maximum allowable value
+    :return: Dictionary of form {Field ID: Mean raster value}
     """
 
     # Open input files
@@ -113,8 +126,8 @@ def loop_zonal_stats(shapefilePath, rasterPath, minAllowableValue, maxAllowableV
     driver = ogr.GetDriverByName('Memory')
     dataSource = driver.CreateDataSource('inMemoryDataSource')
     singleFeatureLayer = dataSource.CreateLayer('singleFeatureLayer',
-                                                srs = allFeaturesLayer.GetSpatialRef(),
-                                                geom_type = allFeaturesLayerDefinition.GetGeomType())
+                                                srs=allFeaturesLayer.GetSpatialRef(),
+                                                geom_type=allFeaturesLayerDefinition.GetGeomType())
     singleFeatureLayerDefinition = singleFeatureLayer.GetLayerDefn()
     vector.copyLayerFieldDefinitions(allFeaturesLayer, singleFeatureLayer)
 
@@ -144,6 +157,3 @@ def loop_zonal_stats(shapefilePath, rasterPath, minAllowableValue, maxAllowableV
             print 'Processed FID: ' + str(FID)
 
     return statDict
-
-
-
