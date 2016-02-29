@@ -510,3 +510,71 @@ def createLayer(filePath, driverName, geometryType):
     return layer, dataSource
 
 
+def getFeatureList(layer):
+    """
+    Takes a layer and returns a list of all its feature objects
+    :param layer:
+    :return:
+    """
+    features = []
+    for feature in layer:
+        features.append(feature)
+    return features
+
+
+def findNearest(searchFeature, targetLayer, distanceMethod='nearestToNearest',
+                startBuffer=10000, bufferStep=200000, stopBuffer=1000000):
+    """
+    This finds the nearest feature to the "search Feature" in the targetLayer.
+    :param searchFeature:
+    :param targetLayer:
+    :return:
+    """
+
+    # Get geometry of search feature so we can buffer it
+    searchGeometry = searchFeature.GetGeometryRef()
+
+    currentBuffer = startBuffer
+    nearest = None
+    minDistance = float('inf')
+
+    while nearest is None and currentBuffer < stopBuffer:
+
+        # Reduce the target layer to only those features within the buffered search area
+        searchArea = searchGeometry.Buffer(currentBuffer)
+        targetLayer.SetSpatialFilter(searchArea)
+
+        # If any target features are within the search area, find which one is closest to the search feature.
+        if targetLayer.GetFeatureCount() > 0:
+            for targetFeature in targetLayer:
+                distance = calculateDistance(searchFeature, targetFeature, distanceMethod)
+                if distance < minDistance:
+                    nearest = targetFeature
+                    minDistance = distance
+
+        # Increment buffer to try the next largest search area
+        currentBuffer += bufferStep
+
+    # Clear the spatial filter
+    targetLayer.SetSpatialFilter(None)
+
+    return nearest
+
+
+
+
+
+if __name__ == '__main__':
+    skiShapefile = '../../Data/SkiAreas/skiAreas.shp'
+    driverName = 'ESRI Shapefile'
+    albersSkiShapefile = os.path.splitext(skiShapefile)[0] + '_AlbersEqualAreaConic.shp'
+
+    skiAreaLayer, skiAreaDataSource = getLayer(albersSkiShapefile, driverName)
+    subLayer, subDataSource = getLayer('../../Data/USMergedCountySubs/USMergedCountySubs_AlbersEqualAreaConic.shp', driverName)
+
+    testFeature = subLayer.GetFeature(100)
+    nearestSkiArea = findNearest(testFeature, skiAreaLayer)
+    print nearestSkiArea
+
+
+
