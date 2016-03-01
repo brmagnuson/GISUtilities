@@ -631,6 +631,81 @@ def findNearest(searchFeature, targetLayer, distanceMethod='nearestToNearest',
     return nearest
 
 
+def getNullFeatures(layer, fieldName):
+    """
+    Gets all features in a layer that have NULL value for a specific field
+    :param layer: Layer to check for null values
+    :param fieldName: Field to check for null values
+    :return: List of Feature objects
+    """
+
+    # Reduce layer to NULL features
+    query = fieldName + ' IS NULL'
+    layer.SetAttributeFilter(query)
+
+    # Build list of those features, then clear the query
+    nullFeatures = getFeatureList(layer)
+    layer.SetAttributeFilter(None)
+    return nullFeatures
+
+
+def getKNearestNeighbors(feature, layer, k=5):
+    """
+    Gets the k nearest neighbors of a feature in a layer by centroid-to-centroid distance
+    :param feature: Feature to find neighbors for
+    :param layer: feature's Layer
+    :param k: Int. Number of neighbors to find (5 by default)
+    :return: List of neighboring Feature objects of length k
+    """
+
+    # Get geometry of feature so we can buffer it
+    searchGeometry = feature.GetGeometryRef()
+
+    # Set initial parameters for search. Add feature to discoveredFeatures so it doesn't get counted as its own neighbor
+    currentBuffer = 10
+    discoveredFIDs = [feature.GetFID()]
+    kNearestNeighbors = {}
+
+    while len(kNearestNeighbors) < k:
+
+        # Reduce layer to only those features within buffered search area
+        searchArea = searchGeometry.Buffer(currentBuffer)
+        layer.SetSpatialFilter(searchArea)
+
+        # Test overlapping features to find those with closest centroid to feature's centroid
+        for neighbor in layer:
+
+            # Don't test any features we already know about
+            if neighbor.GetFID() in discoveredFIDs:
+                continue
+
+            distance = calculateDistance(feature, neighbor, 'centroidToCentroid')
+
+            # Always add the first five features we come across, and if query returned additional features, add them if
+            # they are closer
+            if len(kNearestNeighbors) < 5:
+
+                kNearestNeighbors[distance] = neighbor
+
+            else:
+
+                # If distance is less than current max, replace largest distance with newer neighbor to maintain k
+                maxDistance = max(kNearestNeighbors.keys())
+                if distance < maxDistance:
+                    kNearestNeighbors[distance] = neighbor
+                    kNearestNeighbors.pop(maxDistance)
+
+            discoveredFIDs.append(neighbor.GetFID())
+
+        # Increase buffer by factor of 10
+        currentBuffer *= 10
+
+    # Clear spatial filter
+    layer.SetSpatialFilter(None)
+
+    return kNearestNeighbors.values()
+
+
 if __name__ == '__main__':
 
     # Set parameters
