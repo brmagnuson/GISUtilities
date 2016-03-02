@@ -2,6 +2,7 @@ import sys
 import ogr
 import os
 import osr
+import numpy
 import pandas
 
 
@@ -704,6 +705,35 @@ def getKNearestNeighbors(feature, layer, k=5):
     layer.SetSpatialFilter(None)
 
     return kNearestNeighbors.values()
+
+
+def interpolate(feature, field, layer, k=5):
+    """
+    Does a simple average of the k nearest neighbors to interpolate and set a value for a feature's field.
+    :param feature: Feature to interpolate for
+    :param field: String representing field name or Int representing field index
+    :param layer: Feature's layer. Must be open in write mode
+    :param k: Int. Number of neighbors to use in interpolation (5 by default)
+    :return: Float representing interpolated value
+    """
+
+    # Make sure layer is open in write mode
+    if layer.TestCapability(ogr.OLCRandomWrite) is False:
+        raise Exception('Layer must be opened in write mode for interpolation.')
+
+    # Find k nearest neighbors to the feature
+    neighbors = getKNearestNeighbors(feature, layer, k)
+
+    # Average their values
+    neighborValues = []
+    for neighbor in neighbors:
+        neighborValues.append(neighbor.GetField(field))
+    interpolatedAverage = numpy.mean(neighborValues)
+
+    # Set average as feature's value.
+    feature.SetField(field, interpolatedAverage)
+    layer.SetFeature(feature)
+    return interpolatedAverage
 
 
 if __name__ == '__main__':
