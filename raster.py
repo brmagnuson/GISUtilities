@@ -103,7 +103,7 @@ def zonal_stats(feat, layer, raster, minAllowableValue, maxAllowableValue):
     return zoneMean
 
 
-def loop_zonal_stats(shapefilePath, rasterPath, minAllowableValue, maxAllowableValue):
+def loop_zonal_stats(shapefilePath, rasterPath, minAllowableValue, maxAllowableValue, printStatus=False):
     """
     This function calculates zonal statistics for each feature in a shapefile based on a raster.
     :param shapefilePath: String. path to existing shapefile we want statistics for
@@ -134,7 +134,8 @@ def loop_zonal_stats(shapefilePath, rasterPath, minAllowableValue, maxAllowableV
     # Loop through each feature
     statDict = {}
 
-    print 'Number of FIDs to process: ' + str(len(allFeaturesList))
+    if printStatus:
+        print 'Number of FIDs to process: ' + str(len(allFeaturesList))
 
     for FID in allFeaturesList:
 
@@ -153,7 +154,7 @@ def loop_zonal_stats(shapefilePath, rasterPath, minAllowableValue, maxAllowableV
         singleFeatureLayer.DeleteFeature(FID)
         singleFeature.Destroy()
 
-        if FID % 25 == 0:
+        if printStatus and FID % 25 == 0:
             print 'Processed FID: ' + str(FID)
 
     return statDict
