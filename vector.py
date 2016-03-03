@@ -650,7 +650,7 @@ def getNullFeatures(layer, fieldName):
     return nullFeatures
 
 
-def getKNearestNeighbors(feature, layer, k=5):
+def getKNearestNeighbors(feature, layer, k=5, ignoreNoneValues=False, noneField=None):
     """
     Gets the k nearest neighbors of a feature in a layer by centroid-to-centroid distance
     :param feature: Feature to find neighbors for
@@ -659,11 +659,15 @@ def getKNearestNeighbors(feature, layer, k=5):
     :return: List of neighboring Feature objects of length k
     """
 
+    if ignoreNoneValues is True and noneField is None:
+        raise Exception('If ignoring features with none values, noneField must be given.')
+
     # Get geometry of feature so we can buffer it
     searchGeometry = feature.GetGeometryRef()
 
-    # Set initial parameters for search. Add feature to discoveredFeatures so it doesn't get counted as its own neighbor
-    currentBuffer = 10
+    # Set initial parameters for search. Start buffer at 1/10th the size of the feature, and add feature to
+    # discoveredFeatures so it doesn't get counted as its own neighbor
+    currentBuffer = searchGeometry.GetArea() * .1
     discoveredFIDs = [feature.GetFID()]
     kNearestNeighbors = {}
 
@@ -679,6 +683,12 @@ def getKNearestNeighbors(feature, layer, k=5):
             # Don't test any features we already know about
             if neighbor.GetFID() in discoveredFIDs:
                 continue
+            discoveredFIDs.append(neighbor.GetFID())
+
+            # If neighbor has None value for field of interest, skip it.
+            if ignoreNoneValues:
+                if neighbor.GetField(noneField) is None:
+                    continue
 
             distance = calculateDistance(feature, neighbor, 'centroidToCentroid')
 
@@ -695,8 +705,6 @@ def getKNearestNeighbors(feature, layer, k=5):
                 if distance < maxDistance:
                     kNearestNeighbors[distance] = neighbor
                     kNearestNeighbors.pop(maxDistance)
-
-            discoveredFIDs.append(neighbor.GetFID())
 
         # Increase buffer by factor of 10
         currentBuffer *= 10
@@ -722,7 +730,7 @@ def interpolate(feature, field, layer, k=5):
         raise Exception('Layer must be opened in write mode for interpolation.')
 
     # Find k nearest neighbors to the feature
-    neighbors = getKNearestNeighbors(feature, layer, k)
+    neighbors = getKNearestNeighbors(feature, layer, k, ignoreNoneValues=True, noneField=field)
 
     # Average their values
     neighborValues = []
