@@ -484,7 +484,7 @@ def createPrjFile(projectionInfo, shapefilePath):
     return prjPath
 
 
-def calculateDistance(place1, place2, method='nearestToNearest'):
+def calculateDistance(place1, place2, method='nearestToNearest', conversionFactor=1):
     """
     This function calculates shortest distance (Euclidean) from place1 to place2
     :param place1: Starting Feature/Geometry
@@ -512,13 +512,13 @@ def calculateDistance(place1, place2, method='nearestToNearest'):
 
     # Calculate distance according to specified method and return that value
     if method == 'nearestToNearest':
-        return geometry1.Distance(geometry2)
+        return geometry1.Distance(geometry2) * conversionFactor
     elif method == 'centroidToCentroid':
-        return geometry1.Centroid().Distance(geometry2.Centroid())
+        return geometry1.Centroid().Distance(geometry2.Centroid()) * conversionFactor
     elif method == 'nearestToCentroid':
-        return geometry1.Distance(geometry2.Centroid())
+        return geometry1.Distance(geometry2.Centroid()) * conversionFactor
     elif method == 'centroidToNearest':
-        return geometry1.Centroid().Distance(geometry2)
+        return geometry1.Centroid().Distance(geometry2) * conversionFactor
 
 
 def getLayer(filePath, driverName, mode=0, osmLayer=None):
@@ -742,6 +742,22 @@ def interpolate(feature, field, layer, k=5):
     feature.SetField(field, interpolatedAverage)
     layer.SetFeature(feature)
     return interpolatedAverage
+
+
+def calculateDensity(feature, field, conversionFactor=1):
+
+    # Get geometry object for each place, since Feature doesn't have a geometry method
+    if isinstance(feature, ogr.Geometry):
+        geometry = feature
+    elif isinstance(feature, ogr.Feature):
+        geometry = feature.GetGeometryRef()
+    else:
+        sys.exit('Feature\'s geometry not derived from recognizable type.')
+
+    value = feature.GetField(field)
+    area = geometry.Area()
+    density = value / (area * conversionFactor)
+    return density
 
 
 if __name__ == '__main__':
