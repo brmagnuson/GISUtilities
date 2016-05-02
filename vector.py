@@ -300,9 +300,7 @@ def scaleField(filePath, driverName, existingFieldName, newFieldName):
         if existingValue is None:
             continue
 
-        # Discard 'nan' or 0 values, as these are likely data problems
-        # TODO: Want to keep 0 in some cases, so maybe replacing 0 with NULL for certain fields should be own function
-        # if pandas.isnull(existingValue) or existingValue == 0:
+        # Discard 'nan' values, as these are likely data problems
         if pandas.isnull(existingValue):
             scaledFieldValues[fid] = None
         else:
