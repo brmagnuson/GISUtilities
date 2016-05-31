@@ -264,29 +264,47 @@ def fieldDifference(filePath, driverName, fieldName1, fieldName2, newFieldName):
     return
 
 
-def scaleField(filePath, driverName, existingFieldName, newFieldName):
+def scaleField(filePath, driverName, existingFieldName, newFieldName, method='normal'):
     """
     Scales field from 0 to 1 and adds that information to the spatial file
     :param filePath: String. Path to existing spatial file
     :param driverName: String. Type of spatial file (eg, 'ESRI Shapefile', 'OSM', 'GeoJSON', 'KML', 'SQLite')
     :param existingFieldName: String. Name of field of interest
     :param newFieldName: String. Name of new field
+    :param method: 'normal' (default) or 'quartile'. Normal scaling performs traditional linear scaling. Quartile
+    scaling performs linear scaling for each quartile and is useful when the data has important outliers, an exponential
+    distribution, etc.
     :return:
     """
     # Open spatial file
     layer, dataSource = getLayer(filePath, driverName)
 
-    # Loop through features to get minimum and maximum value
-    minValue = float('inf')
-    maxValue = float('-inf')
+    # Get full array of features
+    values = []
     for feature in layer:
         fieldValue = feature.GetField(existingFieldName)
         if fieldValue is None:
             continue
-        if fieldValue < minValue:
-            minValue = fieldValue
-        if fieldValue > maxValue:
-            maxValue = fieldValue
+        values.append(fieldValue)
+    values = numpy.array(values)
+
+    # Get percentile information
+    zeroPercentile = numpy.percentile(values, 0)
+    twentyFivePercentile = numpy.percentile(values, 25)
+    fiftyPercentile = numpy.percentile(values, 50)
+    seventyFivePercentile = numpy.percentile(values, 75)
+    hundredPercentile = numpy.percentile(values, 100)
+
+    # minValue = float('inf')
+    # maxValue = float('-inf')
+    # for feature in layer:
+    #     fieldValue = feature.GetField(existingFieldName)
+    #     if fieldValue is None:
+    #         continue
+    #     if fieldValue < minValue:
+    #         minValue = fieldValue
+    #     if fieldValue > maxValue:
+    #         maxValue = fieldValue
 
     # Loop through layer to calculate scaled version of the field {FID:newFieldValue}
     layer.ResetReading()
@@ -304,7 +322,39 @@ def scaleField(filePath, driverName, existingFieldName, newFieldName):
         if pandas.isnull(existingValue):
             scaledFieldValues[fid] = None
         else:
-            scaledValue = ((existingValue - minValue) * 1.0) / (maxValue - minValue)
+
+            # Determine scaling range based on scaling method
+            if method == 'normal':
+                oldMin = zeroPercentile
+                oldMax = hundredPercentile
+                newMin = 0.0
+                newMax = 1.0
+            elif method == 'quartile':
+                if existingValue < twentyFivePercentile:
+                    oldMin = zeroPercentile
+                    oldMax = twentyFivePercentile
+                    newMin = 0.0
+                    newMax = 0.25
+                elif existingValue < fiftyPercentile:
+                    oldMin = twentyFivePercentile
+                    oldMax = fiftyPercentile
+                    newMin = 0.25
+                    newMax = 0.5
+                elif existingValue < seventyFivePercentile:
+                    oldMin = fiftyPercentile
+                    oldMax = seventyFivePercentile
+                    newMin = 0.5
+                    newMax = 0.75
+                else:
+                    oldMin = seventyFivePercentile
+                    oldMax = hundredPercentile
+                    newMin = 0.75
+                    newMax = 1.0
+            else:
+                raise ValueError('Method must be either "normal" or "quartile".')
+
+            # Scale the value
+            scaledValue = ((existingValue - oldMin) * (newMax - newMin)) / (oldMax - oldMin) + newMin
             scaledFieldValues[fid] = scaledValue
 
     # Feed that new dictionary into addNewFieldToSpatialFile
