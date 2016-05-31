@@ -295,17 +295,6 @@ def scaleField(filePath, driverName, existingFieldName, newFieldName, method='no
     seventyFivePercentile = numpy.percentile(values, 75)
     hundredPercentile = numpy.percentile(values, 100)
 
-    # minValue = float('inf')
-    # maxValue = float('-inf')
-    # for feature in layer:
-    #     fieldValue = feature.GetField(existingFieldName)
-    #     if fieldValue is None:
-    #         continue
-    #     if fieldValue < minValue:
-    #         minValue = fieldValue
-    #     if fieldValue > maxValue:
-    #         maxValue = fieldValue
-
     # Loop through layer to calculate scaled version of the field {FID:newFieldValue}
     layer.ResetReading()
     scaledFieldValues = {}
